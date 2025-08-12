@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  pdf-service:
+    build: .
+    image: pdf-upload-service:latest
+    container_name: pdf-service
+    restart: unless-stopped
+    ports:
+      - "6789:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./public:/app/public
+

@@ -1,0 +1,10 @@
+{
+  "name": "pdf_view",
+  "devDependencies": {},
+  "peerDependencies": {},
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  }
+}
