@@ -1,14 +1,27 @@
-version: "3.8"
 services:
   pdf-service:
     build: .
-    image: pdf-upload-service:latest
     container_name: pdf-service
     restart: unless-stopped
-    ports:
-      - "6789:3000"
     env_file:
       - .env
     volumes:
       - ./public:/app/public
 
+  pdf-service-https:
+    image: nginx:alpine
+    container_name: nginx
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - pdf-service
+    networks:
+      - pdf-service-network
+  
+
+networks:
+  pdf-service-network:
+    external: true
+    name: pdf-service-network
