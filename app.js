@@ -57,6 +57,10 @@ app.use(express.static(PUBLIC_DIR, {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
 }));
+ñ
+app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+});
 
 app.listen(3000, () => {
     console.log(`PDF service listening on http://0.0.0.0:3000`);
