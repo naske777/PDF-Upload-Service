@@ -54,9 +54,13 @@ app.use(express.static(PUBLIC_DIR, {
     setHeaders: (res, filePath) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Cache-Control', 'no-store');
     }
 }));
+ñ
+app.use((req, res) => {
+    res.status(404).json({ error: 'Not found' });
+});
 
 app.listen(3000, () => {
     console.log(`PDF service listening on http://0.0.0.0:3000`);
