@@ -37,23 +37,30 @@ curl -F "file=@/path/to/file.pdf;type=application/pdf" \
      http://localhost:3000/api/upload
 ```
 
-## Docker
-```bash
-# Build and run
-docker build -t pdf-service .
-docker run -d --name pdf-service --restart unless-stopped \
-  -p 80:3000 \
-  --env-file .env \
-  -v $(pwd)/public:/app/public \
-  pdf-service
-```
-
-## Docker Compose
-```bash
-# Set your token in .env first
 docker compose up -d --build
-```
 
-## Production Notes
+## Production Usage
+
+1. **Clone the repository:**
+  ```sh
+  git clone <this-repo-url>
+  cd PDF-Upload-Service
+  ```
+
+2. **Read the `.env.example` file and create your own `.env` file:**
+  - Copy `.env.example` to `.env`.
+  - Set the `UPLOAD_TOKEN` value in your `.env` file.
+
+3. **Build and start the service:**
+  ```sh
+  docker compose up -d --build
+  ```
+
+4. **Access the service:**
+  - The process will be available on port `6789`.
+  - You can access it via `http://localhost:6789` or your server's public IP/domain.
+
+---
+**Notes:**
 - Set `UPLOAD_TOKEN` to a secure random value (256+ bits)
 - Files are overwritten on each upload (single file storage)

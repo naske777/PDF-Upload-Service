@@ -57,7 +57,7 @@ app.use(express.static(PUBLIC_DIR, {
         res.setHeader('Cache-Control', 'no-store');
     }
 }));
-ñ
+
 app.use((req, res) => {
     res.status(404).json({ error: 'Not found' });
 });
