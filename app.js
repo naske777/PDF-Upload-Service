@@ -54,7 +54,7 @@ app.use(express.static(PUBLIC_DIR, {
     setHeaders: (res, filePath) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.setHeader('Cache-Control', 'no-store');
     }
 }));
 ñ
