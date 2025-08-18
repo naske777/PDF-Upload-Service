@@ -49,7 +49,12 @@ docker compose up -d --build
 
 2. **Read the `.env.example` file and create your own `.env` file:**
   - Copy `.env.example` to `.env`.
-  - Set the `UPLOAD_TOKEN` value in your `.env` file.
+  - Set the `UPLOAD_TOKEN` value in your `.env` file. This token can be any string, but for better security, use a long, random value (e.g. generated with `openssl rand -hex 32`).
+    Example:
+    ```sh
+    openssl rand -hex 32
+    ```
+    Then copy the output as your UPLOAD_TOKEN.
 
 3. **Build and start the service:**
   ```sh
