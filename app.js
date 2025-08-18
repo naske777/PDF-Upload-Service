@@ -24,10 +24,10 @@ function requireToken(req, res, next) {
     next();
 }
 
-// Multer storage
+// Multer storage: always save as latest.pdf, versioning handled in endpoint
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, PUBLIC_DIR),
-    filename: (_req, file, cb) => {
+    filename: (_req, _file, cb) => {
         cb(null, 'latest.pdf');
     }
 });
@@ -37,7 +37,7 @@ const upload = multer({
     limits: { fileSize: MAX_SIZE },
     fileFilter: (_req, file, cb) => {
         if (file.mimetype === 'application/pdf') cb(null, true);
-        else cb(new Error('Solo se aceptan PDFs'));
+        else cb(new Error('Only PDF files are accepted'));
     }
 });
 
@@ -50,10 +50,35 @@ app.use((req, res) => {
 const cvRouter = express.Router();
 
 // Upload endpoint under /cv/upload
-cvRouter.post('/upload', requireToken, upload.single('file'), (req, res) => {
-    const fileName = path.basename(req.file.filename);
+cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) => {
+    const fsPromises = require('fs').promises;
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    res.json({ id: fileName.replace(/\.pdf$/i, ''), url: `${baseUrl}/cv/${fileName}` });
+    let nextMajor = 1;
+    try {
+        const files = await fsPromises.readdir(PUBLIC_DIR);
+        const versions = files
+            .map(f => /^v-(\d+)\.(\d+)\.(\d+)\.pdf$/.exec(f))
+            .filter(Boolean)
+            .map(match => parseInt(match[1], 10));
+        if (versions.length > 0) {
+            nextMajor = Math.max(...versions) + 1;
+        }
+    } catch (e) {}
+
+    const versionString = `${nextMajor}.0.0`;
+    const src = path.join(PUBLIC_DIR, 'latest.pdf');
+    const dest = path.join(PUBLIC_DIR, `v-${versionString}.pdf`);
+    try {
+        await fsPromises.copyFile(src, dest);
+    } catch (e) {
+        return res.status(500).json({ error: 'Failed to save versioned file' });
+    }
+
+    res.json({
+        latest: `${baseUrl}/cv/latest.pdf`,
+        versioned: `${baseUrl}/cv/v-${versionString}.pdf`,
+        version: versionString
+    });
 });
 
 // Static serving under /cv (e.g., /cv/latest.pdf)
