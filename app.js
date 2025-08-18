@@ -41,16 +41,23 @@ const upload = multer({
     }
 });
 
-// Upload endpoint
-app.post('/api/upload', requireToken, upload.single('file'), (req, res) => {
-
-    const fileName = path.basename(req.file.filename);
-    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    res.json({ id: fileName.replace(/\.pdf$/i, ''), url: `${baseUrl}/${fileName}` });
+// 404 for all other routes: respond with 404 and no content
+app.use((req, res) => {
+    res.status(404).end();
 });
 
-// Static serving (direct link like /<filename>.pdf)
-app.use(express.static(PUBLIC_DIR, {
+// Create a router for /cv
+const cvRouter = express.Router();
+
+// Upload endpoint under /cv/upload
+cvRouter.post('/upload', requireToken, upload.single('file'), (req, res) => {
+    const fileName = path.basename(req.file.filename);
+    const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+    res.json({ id: fileName.replace(/\.pdf$/i, ''), url: `${baseUrl}/cv/${fileName}` });
+});
+
+// Static serving under /cv (e.g., /cv/latest.pdf)
+cvRouter.use('/', express.static(PUBLIC_DIR, {
     setHeaders: (res, filePath) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
@@ -58,10 +65,10 @@ app.use(express.static(PUBLIC_DIR, {
     }
 }));
 
-app.use((req, res) => {
-    res.status(404).json({ error: 'Not found' });
-});
+// Mount the router at /cv
+app.use('/cv', cvRouter);
 
 app.listen(3000, () => {
     console.log(`PDF service listening on http://0.0.0.0:3000`);
 });
+ 
