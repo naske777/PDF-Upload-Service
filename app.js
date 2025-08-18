@@ -44,6 +44,7 @@ const upload = multer({
 // Create a router for /cv
 const cvRouter = express.Router();
 
+
 // Upload endpoint under /cv/upload
 cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) => {
     const fsPromises = require('fs').promises;
@@ -88,14 +89,42 @@ cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) =
     });
 });
 
-// Static serving under /cv (e.g., /cv/latest.pdf)
-cvRouter.use('/', express.static(PUBLIC_DIR, {
-    setHeaders: (res, filePath) => {
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename="${path.basename(filePath)}"`);
-        res.setHeader('Cache-Control', 'no-store');
+// Custom handler for PDF viewing with version in page title
+cvRouter.get(['/latest.pdf', '/v-:major.:minor.:patch.pdf'], async (req, res, next) => {
+    const accept = req.headers.accept || '';
+    const isHtml = accept.includes('text/html');
+    let fileName, version;
+    if (req.params.major && req.params.minor && req.params.patch) {
+        version = `v-${req.params.major}.${req.params.minor}.${req.params.patch}.pdf`;
+        fileName = path.join(PUBLIC_DIR, version);
+    } else {
+        version = 'latest.pdf';
+        fileName = path.join(PUBLIC_DIR, version);
     }
-}));
+    if (isHtml) {
+        // Serve HTML wrapper with title
+        return res.send(`<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\">
+  <title>${version}</title>
+  <style>body,html{margin:0;padding:0;height:100%;}iframe{border:0;width:100vw;height:100vh;}</style>
+</head>
+<body>
+  <iframe src=\"${encodeURI(req.originalUrl)}?raw=1\" allowfullscreen></iframe>
+</body>
+</html>`);
+    }
+    // If ?raw=1 or Accept is not html, serve the PDF file
+    if (req.query.raw === '1' || !isHtml) {
+        if (!fs.existsSync(fileName)) return res.status(404).end();
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename=\"${version}\"`);
+        res.setHeader('Cache-Control', 'no-store');
+        return res.sendFile(fileName);
+    }
+    next();
+});
 
 // Mount the router at /cv
 app.use('/cv', cvRouter);
