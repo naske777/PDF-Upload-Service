@@ -55,9 +55,30 @@ curl -F "file=@/path/to/file.pdf;type=application/pdf" \
   http://localhost:3000/cv/upload
 ```
 
+
 ## Docker Compose
 
-```bash
+This project uses Docker Compose to orchestrate both the PDF service and the nginx reverse proxy. Both services communicate over a shared Docker network.
+
+### Docker Network
+
+- The `docker-compose.yml` file specifies an external network named `pdf-service-network`:
+  ```yaml
+  networks:
+    pdf-service-network:
+      external: true
+      name: pdf-service-network
+  ```
+- This allows the `pdf-service` and `nginx` containers to communicate securely by name (e.g., `proxy_pass http://pdf-service:3000/cv/` in nginx).
+- **You must create this network before running Docker Compose for the first time:**
+
+```sh
+docker network create pdf-service-network
+```
+
+Then you can start the stack:
+
+```sh
 docker compose up -d --build
 ```
 
@@ -119,4 +140,63 @@ docker compose up -d --build
 ### 6. Changes to `.env` are not reflected
 - Restart the server or Docker container after modifying environment variables.
 
-If you encounter other issues, please check the logs for error messages or open an issue in the repository.
+
+---
+
+## Nginx Reverse Proxy & Cloudflare Setup
+
+This project includes an example `nginx.conf` for secure reverse proxying and domain management.
+
+### Example Nginx Configuration
+
+See the provided `nginx.conf` for a full working example. Key points:
+
+- Redirects all HTTP traffic to HTTPS.
+- Only allows access via your configured domains (e.g., `cv.luilver.com`).
+- Proxies `/cv/` requests to the backend service (e.g., Docker container `pdf-service:3000`).
+- Limits upload size (see `client_max_body_size`).
+- Uses Let's Encrypt certificates for SSL.
+
+#### How to use
+1. Place `nginx.conf` in your server's `/etc/nginx/` or appropriate config directory.
+2. Adjust `server_name`, certificate paths, and proxy_pass as needed for your setup.
+3. Reload or restart nginx after changes: `sudo systemctl reload nginx`
+
+
+### Generating SSL Certificates with Let's Encrypt
+
+You must generate the SSL certificates on the host machine (not inside the nginx container). The Docker Compose file mounts the host's `/etc/letsencrypt` directory into the nginx container so it can access the certificates.
+
+You can use [Certbot](https://certbot.eff.org/) to generate free SSL certificates on your host:
+
+```sh
+sudo apt update
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d cv.luilver.com -d luilver.com
+```
+
+This will automatically configure SSL and renewals. Certificates are stored in `/etc/letsencrypt/live/<your-domain>/` on the host.
+
+**Important:**
+- The volume line in `docker-compose.yml`:
+  ```yaml
+  - /etc/letsencrypt:/etc/letsencrypt:ro
+  ```
+  means the nginx container can read the certificates generated on the host at the same path. Do not generate certificates inside the container.
+
+### Cloudflare DNS Setup
+
+To use Cloudflare as a proxy and DNS provider:
+
+1. Add your domain to Cloudflare and set the nameservers as instructed by Cloudflare.
+2. In the Cloudflare dashboard, go to the DNS section and add an "A" record for your domain (e.g., `cv.luilver.com`) pointing to your server's public IP address.
+3. (Recommended) Enable the orange cloud (proxy) for DDoS protection and caching.
+4. In SSL/TLS settings, set the mode to "Full (strict)" for best security.
+5. Make sure ports 80 and 443 are open on your server and not blocked by a firewall.
+
+#### Tips
+- If you use Cloudflare proxy, SSL must be enabled on your server (see above).
+- For Let's Encrypt to work, temporarily disable the orange cloud (set to DNS only) while issuing/renewing certificates, then re-enable proxying.
+- Use Cloudflare Page Rules or Firewall Rules for additional access control if needed.
+
+---
