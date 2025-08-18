@@ -24,11 +24,11 @@ function requireToken(req, res, next) {
     next();
 }
 
-// Multer storage: always save as latest.pdf, versioning handled in endpoint
+// Multer storage: save as a temp file, then move/rename to versioned name
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, PUBLIC_DIR),
     filename: (_req, _file, cb) => {
-        cb(null, 'latest.pdf');
+        cb(null, '__uploading.pdf');
     }
 });
 
@@ -46,6 +46,7 @@ const cvRouter = express.Router();
 
 
 // Upload endpoint under /cv/upload
+
 cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) => {
     const fsPromises = require('fs').promises;
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
@@ -71,59 +72,58 @@ cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) =
             minor = latest.minor;
             nextPatch = latest.patch + 1;
         }
-    } catch (e) {}
-
-    const versionString = `${major}.${minor}.${nextPatch}`;
-    const src = path.join(PUBLIC_DIR, 'latest.pdf');
-    const dest = path.join(PUBLIC_DIR, `v-${versionString}.pdf`);
-    try {
-        await fsPromises.copyFile(src, dest);
+        // Move uploaded file to versioned name
+        const versionString = `${major}.${minor}.${nextPatch}`;
+        const src = path.join(PUBLIC_DIR, '__uploading.pdf');
+        const dest = path.join(PUBLIC_DIR, `v-${versionString}.pdf`);
+        await fsPromises.rename(src, dest);
+        res.json({
+            latest: `${baseUrl}/cv/latest.pdf`,
+            versioned: `${baseUrl}/cv/v-${versionString}.pdf`,
+            version: versionString
+        });
     } catch (e) {
         return res.status(500).json({ error: 'Failed to save versioned file' });
     }
-
-    res.json({
-        latest: `${baseUrl}/cv/latest.pdf`,
-        versioned: `${baseUrl}/cv/v-${versionString}.pdf`,
-        version: versionString
-    });
 });
 
-// Custom handler for PDF viewing with version in page title
-cvRouter.get(['/latest.pdf', '/v-:major.:minor.:patch.pdf'], async (req, res, next) => {
-    const accept = req.headers.accept || '';
-    const isHtml = accept.includes('text/html');
-    let fileName, version;
-    if (req.params.major && req.params.minor && req.params.patch) {
-        version = `v-${req.params.major}.${req.params.minor}.${req.params.patch}.pdf`;
-        fileName = path.join(PUBLIC_DIR, version);
-    } else {
-        version = 'latest.pdf';
-        fileName = path.join(PUBLIC_DIR, version);
+
+// Handler for /cv/latest.pdf: redirect to latest versioned PDF
+cvRouter.get('/latest.pdf', async (req, res) => {
+    const fsPromises = require('fs').promises;
+    try {
+        const files = await fsPromises.readdir(PUBLIC_DIR);
+        const versions = files
+            .map(f => /^v-(\d+)\.(\d+)\.(\d+)\.pdf$/.exec(f))
+            .filter(Boolean)
+            .map(match => ({
+                major: parseInt(match[1], 10),
+                minor: parseInt(match[2], 10),
+                patch: parseInt(match[3], 10),
+                file: `v-${match[1]}.${match[2]}.${match[3]}.pdf`
+            }));
+        if (versions.length === 0) return res.status(404).end();
+        // Find the highest version
+        const latest = versions.reduce((a, b) => {
+            if (a.major !== b.major) return a.major > b.major ? a : b;
+            if (a.minor !== b.minor) return a.minor > b.minor ? a : b;
+            return a.patch > b.patch ? a : b;
+        });
+        return res.redirect(302, `/cv/${latest.file}`);
+    } catch (e) {
+        return res.status(500).end();
     }
-    if (isHtml) {
-        // Serve HTML wrapper with title
-        return res.send(`<!DOCTYPE html>
-<html lang=\"en\">
-<head>
-  <meta charset=\"utf-8\">
-  <title>${version}</title>
-  <style>body,html{margin:0;padding:0;height:100%;}iframe{border:0;width:100vw;height:100vh;}</style>
-</head>
-<body>
-  <iframe src=\"${encodeURI(req.originalUrl)}?raw=1\" allowfullscreen></iframe>
-</body>
-</html>`);
-    }
-    // If ?raw=1 or Accept is not html, serve the PDF file
-    if (req.query.raw === '1' || !isHtml) {
-        if (!fs.existsSync(fileName)) return res.status(404).end();
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `inline; filename=\"${version}\"`);
-        res.setHeader('Cache-Control', 'no-store');
-        return res.sendFile(fileName);
-    }
-    next();
+});
+
+// Handler for /cv/v-<version>.pdf: serve the versioned PDF
+cvRouter.get('/v-:major.:minor.:patch.pdf', (req, res) => {
+    const version = `v-${req.params.major}.${req.params.minor}.${req.params.patch}.pdf`;
+    const fileName = path.join(PUBLIC_DIR, version);
+    if (!fs.existsSync(fileName)) return res.status(404).end();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename=\"${version}\"`);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.sendFile(fileName);
 });
 
 // Mount the router at /cv
