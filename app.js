@@ -41,11 +41,6 @@ const upload = multer({
     }
 });
 
-// 404 for all other routes: respond with 404 and no content
-app.use((req, res) => {
-    res.status(404).end();
-});
-
 // Create a router for /cv
 const cvRouter = express.Router();
 
@@ -92,6 +87,11 @@ cvRouter.use('/', express.static(PUBLIC_DIR, {
 
 // Mount the router at /cv
 app.use('/cv', cvRouter);
+
+// 404 for all other routes: respond with 404 and no content
+app.use((req, res) => {
+    res.status(404).end();
+});
 
 app.listen(3000, () => {
     console.log(`PDF service listening on http://0.0.0.0:3000`);
