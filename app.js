@@ -48,19 +48,31 @@ const cvRouter = express.Router();
 cvRouter.post('/upload', requireToken, upload.single('file'), async (req, res) => {
     const fsPromises = require('fs').promises;
     const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
-    let nextMajor = 1;
+    let nextPatch = 1, major = 1, minor = 0;
     try {
         const files = await fsPromises.readdir(PUBLIC_DIR);
         const versions = files
             .map(f => /^v-(\d+)\.(\d+)\.(\d+)\.pdf$/.exec(f))
             .filter(Boolean)
-            .map(match => parseInt(match[1], 10));
+            .map(match => ({
+                major: parseInt(match[1], 10),
+                minor: parseInt(match[2], 10),
+                patch: parseInt(match[3], 10)
+            }));
         if (versions.length > 0) {
-            nextMajor = Math.max(...versions) + 1;
+            // Find the highest version
+            const latest = versions.reduce((a, b) => {
+                if (a.major !== b.major) return a.major > b.major ? a : b;
+                if (a.minor !== b.minor) return a.minor > b.minor ? a : b;
+                return a.patch > b.patch ? a : b;
+            });
+            major = latest.major;
+            minor = latest.minor;
+            nextPatch = latest.patch + 1;
         }
     } catch (e) {}
 
-    const versionString = `${nextMajor}.0.0`;
+    const versionString = `${major}.${minor}.${nextPatch}`;
     const src = path.join(PUBLIC_DIR, 'latest.pdf');
     const dest = path.join(PUBLIC_DIR, `v-${versionString}.pdf`);
     try {
